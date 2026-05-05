@@ -1,0 +1,360 @@
+<!--
+@Time ： 2026/5/5 15:05
+@Auth ： tanli
+@File ：fireworks.html
+@IDE ：PyCharm
+@Description：
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>fireworks</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+<!-- 画布层 -->
+<canvas id="canvas-particles"></canvas>
+<canvas id="canvas-fireworks"></canvas>
+<canvas id="canvas-stars"></canvas>
+<!-- 计时器 -->
+<div id="timer-container">
+    <div class="era-title" id="era-title">—— 余生纪元 ——</div>
+    <div id="timer-love">我们相爱了：计算中...</div>
+    <div id="timer-life">我们订下余生：00天 00时 00分 00秒</div>
+</div>
+<!-- 音乐 -->
+<div id="music-wrapper">
+    <div id="music-player" class="paused" title="点击播放/暂停"></div>
+    <div id="music-list-container">
+        <ul id="music-list">
+            <li onclick="selectMusic(0)">🎵 初见</li>
+            <li onclick="selectMusic(1)">🎵 心动</li>
+            <li onclick="selectMusic(2)">🎵 相守</li>
+        </ul>
+    </div>
+</div>
+<!-- ==================== 7. 终极求婚 ==================== -->
+<div id="proposal-screen" class="screen">
+    <div class="proposal-content">
+        <p class="proposal-sub">在所有人见证下，我想对你说</p>
+        <h2>你愿意嫁给我吗？</h2>
+        <button class="btn" id="btn-accept">我愿意！💍</button>
+    </div>
+</div>
+
+<!-- 钻戒 -->
+<div id="ring-container">
+    <img id="ring-img" src="./images/ring.png" alt="钻戒">
+</div>
+<script>
+    const CONFIG = GLOBAL_CONFIG;
+    let isClimax = false;
+    const audio = new Audio();
+    let currentMusicIndex = 0;
+
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.add('hidden');
+            s.classList.remove('active');
+        });
+        const target = document.getElementById(id);
+        target.classList.remove('hidden');
+        setTimeout(() => target.classList.add('active'), 50);
+    }
+
+    function playMusic(src, loop = false) {
+        audio.src = src;
+        audio.loop = loop;
+        audio.play().then(() => {
+            document.getElementById('music-player').classList.remove('paused');
+        }).catch(e => console.log("需交互后播放", e));
+    }
+
+    function showProposal() {
+        showScreen('proposal-screen');
+        // 恢复背景音乐
+        if (!isClimax) {
+            playMusic(CONFIG.music.normal[currentMusicIndex]);
+        }
+    }
+
+    document.getElementById('btn-accept').addEventListener('click', () => {
+        isClimax = true;
+        engagementDate = new Date();
+
+        audio.pause();
+        playMusic(CONFIG.music.climax, true);
+
+        // 爆发玫瑰雨
+        triggerMassiveRoses();
+
+        setTimeout(() => {
+            isScatteringRoses = false;
+            document.body.classList.add('starry-sky');
+            document.getElementById('canvas-stars').style.display = 'block';
+            initStars();
+            initFireworks();
+            document.getElementById('era-title').style.display = 'block';
+            document.getElementById('timer-life').style.display = 'block';
+
+            const ring = document.getElementById('ring-container');
+            ring.style.display = 'block';
+            setTimeout(() => ring.classList.add('show'), 100);
+
+            const ringImg = document.getElementById('ring-img');
+            ringImg.src = CONFIG.ringImage;
+            ringImg.onerror = function () {
+                this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23FFF8DC'/%3E%3Cstop offset='50%25' stop-color='%23DAA520'/%3E%3Cstop offset='100%25' stop-color='%23B8860B'/%3E%3C/linearGradient%3E%3CradialGradient id='d' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff'/%3E%3Cstop offset='60%25' stop-color='%23e0f7fa'/%3E%3Cstop offset='100%25' stop-color='%2380deea'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='100' cy='120' r='50' stroke='url(%23g)' stroke-width='10' fill='none'/%3E%3Cpolygon points='100,30 70,70 130,70' fill='url(%23d)'/%3E%3Cpolygon points='70,70 130,70 100,90' fill='%23b2ebf2'/%3E%3C/svg%3E";
+            };
+        }, 7000);
+    });
+
+
+    /* ========== 粒子系统 ========== */
+    const cvsPart = document.getElementById('canvas-particles');
+    const ctxPart = cvsPart.getContext('2d');
+    let pW = cvsPart.width = window.innerWidth;
+    let pH = cvsPart.height = window.innerHeight;
+    let petals = [];
+
+    const imgRose = new Image();
+    const imgSakura = new Image();
+    imgRose.src = CONFIG.roseImage;
+    imgSakura.src = CONFIG.sakuraImage;
+
+
+    window.addEventListener('resize', () => {
+        pW = cvsPart.width = window.innerWidth;
+        pH = cvsPart.height = window.innerHeight;
+        fW = fwCvs.width = window.innerWidth;
+        fH = fwCvs.height = window.innerHeight;
+    });
+
+    class Petal {
+        constructor(type, isMassive = false) {
+            this.type = type;
+            this.x = Math.random() * pW;
+            this.y = isMassive ? -Math.random() * pH : -30;
+            this.size = Math.random() * 15 + 10;
+            this.speedY = type === 'rose' ? Math.random() * 4 + 3 : Math.random() * 1.5 + 0.5;
+            this.speedX = Math.random() * 2 - 1;
+            this.angle = Math.random() * 360;
+            this.spin = Math.random() * 0.08 - 0.04;
+            this.opacity = Math.random() * 0.4 + 0.6;
+        }
+
+        update() {
+            this.y += this.speedY;
+            this.x += this.speedX + Math.sin(this.y * 0.01) * 0.5;
+            this.angle += this.spin;
+            if (this.y > pH + 50) {
+                if (this.type === 'sakura' || isScatteringRoses) {
+                    this.y = -50;
+                    this.x = Math.random() * pW;
+                } else {
+                    this.dead = true;
+                }
+            }
+        }
+
+
+        draw() {
+            if (this.dead) return;
+            ctxPart.save();
+            ctxPart.globalAlpha = this.opacity;
+            ctxPart.translate(this.x, this.y);
+            ctxPart.rotate(this.angle);
+            ctxPart.drawImage(this.type === 'sakura' ? imgSakura : imgRose, -this.size / 2, -this.size / 2, this.size, this.size);
+            ctxPart.restore();
+        }
+    }
+
+    for (let i = 0; i < 40; i++) petals.push(new Petal('sakura'));
+
+    function animatePetals() {
+        ctxPart.clearRect(0, 0, pW, pH);
+        for (let i = petals.length - 1; i >= 0; i--) {
+            petals[i].update();
+            petals[i].draw();
+            if (petals[i].dead) petals.splice(i, 1);
+        }
+        requestAnimationFrame(animatePetals);
+    }
+
+    animatePetals();
+
+    function triggerMassiveRoses() {
+        petals = [];
+        isScatteringRoses = true;
+        for (let i = 0; i < 250; i++) {
+            setTimeout(() => petals.push(new Petal('rose', true)), Math.random() * 4000);
+        }
+    }
+
+
+    /* ========== 烟花系统 ========== */
+    const fwCvs = document.getElementById('canvas-fireworks');
+    const fwCtx = fwCvs.getContext('2d');
+    let fW = fwCvs.width = window.innerWidth;
+    let fH = fwCvs.height = window.innerHeight;
+    let fireworks = [], sparks = [];
+
+    class Firework {
+        constructor() {
+            this.x = Math.random() * fW * 0.8 + fW * 0.1;
+            this.y = fH;
+            this.targetY = Math.random() * (fH * 0.4) + 50;
+            this.speed = Math.random() * 3 + 5;
+            this.angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+            this.vx = Math.cos(this.angle) * this.speed;
+            this.vy = Math.sin(this.angle) * this.speed;
+            this.color = `hsl(${Math.random() * 360}, 100%, 70%)`;
+            this.trail = [];
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += 0.08;
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 10) this.trail.shift();
+            if (this.vy >= 0 || this.y <= this.targetY) {
+                this.exploded = true;
+                this.explode();
+            }
+        }
+
+        draw() {
+            fwCtx.beginPath();
+            fwCtx.moveTo(this.trail[0]?.x || this.x, this.trail[0]?.y || this.y);
+            for (let p of this.trail) fwCtx.lineTo(p.x, p.y);
+            fwCtx.strokeStyle = this.color;
+            fwCtx.lineWidth = 2;
+            fwCtx.stroke();
+            fwCtx.beginPath();
+            fwCtx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+            fwCtx.fillStyle = '#fff';
+            fwCtx.fill();
+        }
+
+        explode() {
+            const count = 60 + Math.random() * 40;
+            for (let i = 0; i < count; i++) {
+                sparks.push(new Spark(this.x, this.y, this.color));
+            }
+        }
+    }
+
+    class Spark {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 5 + 1;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.color = color;
+            this.alpha = 1;
+            this.decay = Math.random() * 0.02 + 0.01;
+            this.gravity = 0.05;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += this.gravity;
+            this.vx *= 0.98;
+            this.alpha -= this.decay;
+        }
+
+        draw() {
+            fwCtx.save();
+            fwCtx.globalAlpha = this.alpha;
+            fwCtx.beginPath();
+            fwCtx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+            fwCtx.fillStyle = this.color;
+            fwCtx.fill();
+            // 十字闪光
+            if (this.alpha > 0.5) {
+                fwCtx.strokeStyle = this.color;
+                fwCtx.lineWidth = 1;
+                fwCtx.beginPath();
+                fwCtx.moveTo(this.x - 4, this.y);
+                fwCtx.lineTo(this.x + 4, this.y);
+                fwCtx.moveTo(this.x, this.y - 4);
+                fwCtx.lineTo(this.x, this.y + 4);
+                fwCtx.stroke();
+            }
+            fwCtx.restore();
+        }
+    }
+
+    function initFireworks() {
+        fwCvs.style.display = 'block';
+
+        function animate() {
+            fwCtx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            fwCtx.fillRect(0, 0, fW, fH);
+            if (Math.random() < 0.05) fireworks.push(new Firework());
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                fireworks[i].update();
+                fireworks[i].draw();
+                if (fireworks[i].exploded) fireworks.splice(i, 1);
+            }
+            for (let i = sparks.length - 1; i >= 0; i--) {
+                sparks[i].update();
+                sparks[i].draw();
+                if (sparks[i].alpha <= 0) sparks.splice(i, 1);
+            }
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    }
+
+    /* ========== 星空背景 ========== */
+    function initStars() {
+        const cvs = document.getElementById('canvas-stars');
+        const ctx = cvs.getContext('2d');
+        let W = cvs.width = window.innerWidth;
+        let H = cvs.height = window.innerHeight;
+
+        const stars = [];
+        for (let i = 0; i < 200; i++) {
+            stars.push({
+                x: Math.random() * W, y: Math.random() * H,
+                size: Math.random() * 2, alpha: Math.random(),
+                speed: Math.random() * 0.02 + 0.005
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            stars.forEach(s => {
+                s.alpha += s.speed;
+                if (s.alpha > 1 || s.alpha < 0.2) s.speed = -s.speed;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+                ctx.fill();
+            });
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+
+        window.addEventListener('resize', () => {
+            W = cvs.width = window.innerWidth;
+            H = cvs.height = window.innerHeight;
+        });
+    }
+
+    showProposal();
+</script>
+
+</body>
+</html>

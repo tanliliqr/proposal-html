@@ -1,0 +1,110 @@
+<!--
+@Time ： 2026/5/5 10:47
+@Auth ： tanli
+@File ：gallery.html
+@IDE ：PyCharm
+@Description：
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>图片长廊-所有的点滴</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+<div id="gallery-screen" class="screen">
+    <div class="gallery-container">
+        <div class="gallery-title">📸 我们的点滴</div>
+        <div class="gallery-grid" id="gallery-grid"></div>
+    </div>
+</div>
+
+<script>
+    let galleryDone = false;
+    let galleryScrollReq;
+
+    const CONFIG = GLOBAL_CONFIG;
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.add('hidden');
+            s.classList.remove('active');
+        });
+        const target = document.getElementById(id);
+        target.classList.remove('hidden');
+        setTimeout(() => target.classList.add('active'), 50);
+    }
+
+    /* ========== 照片画廊 ========== */
+    function showGallery() {
+        showScreen('gallery-screen');
+        const grid = document.getElementById('gallery-grid');
+        grid.innerHTML = '';
+
+        CONFIG.gallery.forEach((item, i) => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            div.style.animation = `fadeInUp 0.6s ease-out ${i * 0.1}s both`;
+            div.innerHTML = `
+            <img src="${item.src}" alt="${item.caption}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23eee%22 width=%22100%22 height=%22100%22/><text fill=%22%23999%22 x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2214%22>照片</text></svg>'">
+            <div class="gallery-caption">${item.caption}</div>
+        `;
+            // console.log(i)
+            grid.appendChild(div);
+        });
+
+        // 滚动到底部后自动进入故事
+        const container = document.getElementById('gallery-grid');
+        let currentScroll = 0;
+        const scrollSpeed = 3;
+
+        const totalAnimTime = CONFIG.gallery.length * 100;
+
+
+        function autoScroll() {
+            if (galleryDone) return;
+
+            currentScroll += scrollSpeed;
+            container.scrollTop = currentScroll;
+
+            // 检测是否已经滚到底部 (预留 2px 误差)
+            if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+                finishGallery();
+            } else {
+                // 没有到底，继续下一帧滚动
+                galleryScrollReq = requestAnimationFrame(autoScroll);
+            }
+        }
+
+        function finishGallery() {
+            if (galleryDone) return;
+            galleryDone = true;
+            cancelAnimationFrame(galleryScrollReq);
+
+            // 到底部后，稍微停留两秒再进入下一个环节，体验更佳
+            setTimeout(() => {
+                showVideoPhase(0);
+            }, 3000);
+        }
+
+        // 3. 延迟两秒后，开始自动滚动（给第一条内容展示留出时间）
+        setTimeout(() => {
+            // 如果内容高度确实超过了容器，才需要滚动
+            if (container.scrollHeight > container.clientHeight) {
+                autoScroll();
+            } else {
+                // 如果内容很少没出现滚动条，等动画全部播完后直接进入下一页
+                setTimeout(finishGallery, totalAnimTime + 2000);
+            }
+        }, 1500);
+
+    }
+
+    showGallery()
+
+</script>
+</body>
+</html>
