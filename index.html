@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>亲爱的，嫁给我好吗</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&family=Ma+Shan+Zheng&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+    <script src="./config.js"></script>
+</head>
+<body>
+
+<!-- 画布层 -->
+<canvas id="canvas-particles"></canvas>
+<canvas id="canvas-fireworks"></canvas>
+<canvas id="canvas-stars"></canvas>
+
+<!-- 计时器 -->
+<div id="timer-container">
+    <div class="era-title" id="era-title">—— 余生纪元 ——</div>
+    <div id="timer-love">我们相爱了：计算中...</div>
+    <div id="timer-life">我们订下余生：00天 00时 00分 00秒</div>
+</div>
+
+<!-- 音乐 -->
+<div id="music-wrapper">
+    <div id="music-player" class="paused" title="点击播放/暂停"></div>
+    <div id="music-list-container">
+        <ul id="music-list">
+            <li onclick="selectMusic(0)">🎵 初见</li>
+            <li onclick="selectMusic(1)">🎵 心动</li>
+            <li onclick="selectMusic(2)">🎵 相守</li>
+        </ul>
+    </div>
+</div>
+
+<!-- ==================== 1. 开始界面 ==================== -->
+<div id="start-screen" class="screen">
+    <div class="start-content">
+        <h1>亲爱的，准备好开启我们的回忆了吗？</h1>
+        <p class="start-subtitle">从相遇到相守，每一步都是最美的风景</p>
+        <div class="btn-group">
+            <button class="btn" id="btn-start">准备好了 💕</button>
+            <button class="btn" id="btn-reject">还没准备好</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 2. 恋爱时间轴 ==================== -->
+<div id="timeline-screen" class="screen">
+    <div class="timeline-container" id="timeline-box">
+        <div class="timeline-title">💌 我们的故事</div>
+        <div id="timeline-items"></div>
+    </div>
+</div>
+
+<!-- ==================== 3. 照片故事 ==================== -->
+<div id="story-screen" class="screen">
+    <div class="story-bg" id="story-bg"></div>
+    <div class="story-content">
+        <div class="story-photo-frame">
+            <img class="story-photo" id="story-photo" src="" alt="回忆">
+        </div>
+        <div class="story-text-box">
+            <div id="story-text"></div>
+            <div class="story-progress">
+                <div class="story-progress-bar" id="story-bar"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 4. 照片画廊 ==================== -->
+<div id="gallery-screen" class="screen">
+    <div class="gallery-container">
+        <div class="gallery-title">📸 我们的点滴</div>
+        <div class="gallery-grid" id="gallery-grid"></div>
+    </div>
+</div>
+
+<!-- ==================== 5. 视频祝福 ==================== -->
+<div id="video-screen" class="screen">
+    <div class="video-container">
+        <div class="video-title-main">🎬 亲友的祝福</div>
+        <div class="video-wrapper">
+            <video id="blessing-video" controls preload="auto" playsinline></video>
+        </div>
+        <div class="video-thumbnails" id="video-thumbs"></div>
+        <div class="video-controls">
+            <button class="video-btn" id="btn-next-video">下一个祝福 ➡</button>
+            <button class="video-btn" id="btn-skip-video">跳过视频</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 6. 爱的誓言 ==================== -->
+<div id="vow-screen" class="screen">
+    <div class="vow-container">
+        <div class="vow-icon">💍</div>
+        <div class="vow-text" id="vow-text"></div>
+        <div class="vow-signature" id="vow-signature">—— 爱你的我</div>
+    </div>
+</div>
+
+<!-- ==================== 7. 终极求婚 ==================== -->
+<div id="proposal-screen" class="screen">
+    <div class="proposal-content">
+        <p class="proposal-sub">在所有人见证下，我想对你说</p>
+        <h2>你愿意嫁给我吗？</h2>
+        <button class="btn" id="btn-accept">我愿意！💍</button>
+    </div>
+</div>
+
+<!-- 钻戒 -->
+<div id="ring-container">
+    <img id="ring-img" src="./images/ring.png" alt="钻戒">
+</div>
+
+<script>
+    const CONFIG = GLOBAL_CONFIG
+    /* ═══════════════════════════════════════════════════════
+       以下为核心程序逻辑，一般无需修改
+       ═══════════════════════════════════════════════════════ */
+
+    const loveStartDate = CONFIG.loveStart;
+    let engagementDate = null;
+    let isClimax = false;
+
+    // 音频控制
+    const audio = new Audio();
+    let currentMusicIndex = 0;
+    let isScatteringRoses = false;
+
+    function playMusic(src, loop = false) {
+        audio.src = src;
+        audio.loop = loop;
+        audio.play().then(() => {
+            document.getElementById('music-player').classList.remove('paused');
+        }).catch(e => console.log("需交互后播放", e));
+    }
+
+    document.getElementById('music-player').addEventListener('click', function () {
+        if (audio.paused) {
+            audio.play();
+            this.classList.remove('paused');
+        } else {
+            audio.pause();
+            this.classList.add('paused');
+        }
+    });
+
+    function selectMusic(index) {
+        if (isClimax) return;
+        currentMusicIndex = index;
+        playMusic(CONFIG.music.normal[currentMusicIndex]);
+    }
+
+    audio.addEventListener('ended', () => {
+        if (!isClimax) {
+            currentMusicIndex = (currentMusicIndex + 1) % CONFIG.music.normal.length;
+            playMusic(CONFIG.music.normal[currentMusicIndex]);
+        }
+    });
+
+    // 屏幕切换
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.add('hidden');
+            s.classList.remove('active');
+        });
+        const target = document.getElementById(id);
+        target.classList.remove('hidden');
+        setTimeout(() => target.classList.add('active'), 50);
+    }
+
+    // 计时器
+    function updateTimers() {
+        const now = new Date();
+        const diffLove = now - loveStartDate;
+        document.getElementById('timer-love').innerText = `我们相爱了：${formatTime(diffLove)}`;
+        if (engagementDate) {
+            const diffLife = now - engagementDate;
+            document.getElementById('timer-life').innerText = `我们订下余生：${formatTime(diffLife)}`;
+        }
+    }
+
+    function formatTime(ms) {
+        const days = Math.floor(ms / 86400000);
+        const hours = Math.floor((ms % 86400000) / 3600000);
+        const mins = Math.floor((ms % 3600000) / 60000);
+        const secs = Math.floor((ms % 60000) / 1000);
+        return `${days}天 ${String(hours).padStart(2, '0')}时 ${String(mins).padStart(2, '0')}分 ${String(secs).padStart(2, '0')}秒`;
+    }
+
+    setInterval(updateTimers, 1000);
+
+    // 拒绝按钮逃跑
+    document.getElementById('btn-reject').addEventListener('mouseover', function () {
+        const x = Math.random() * (window.innerWidth - this.offsetWidth - 40);
+        const y = Math.random() * (window.innerHeight - this.offsetHeight - 40);
+        this.style.position = 'fixed';
+        this.style.left = x + 'px';
+        this.style.top = y + 'px';
+    });
+
+    // 开始按钮
+    document.getElementById('btn-start').addEventListener('click', () => {
+        document.getElementById('timer-container').style.display = 'block';
+        playMusic(CONFIG.music.normal[0]);
+        startHeartRain();
+        showTimeline();
+    });
+
+
+    // 全局记录时间轴状态，方便清理
+    let timelineScrollReq;
+    let timelineDone = false;
+
+    function showTimeline() {
+        showScreen('timeline-screen');
+        const box = document.getElementById('timeline-items');
+        const container = document.getElementById('timeline-box');
+        box.innerHTML = '';
+
+        // 重置状态
+        timelineDone = false;
+        container.scrollTop = 0;
+        cancelAnimationFrame(timelineScrollReq);
+
+        // 1. 生成 DOM 并错开时间展示
+        CONFIG.timeline.forEach((item, i) => {
+            const div = document.createElement('div');
+            div.className = 'timeline-item';
+            div.innerHTML = `
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+            <div class="timeline-date">${item.date}</div>
+            <div class="timeline-text">${item.text}</div>
+        </div>
+        ${item.img ? `<img class="timeline-img" src="${item.img}" alt="" onerror="this.style.display='none'">` : ''}
+        `;
+            box.appendChild(div);
+
+            // 依次展示动画
+            setTimeout(() => div.classList.add('show'), i * 600);
+        });
+
+        const totalAnimTime = CONFIG.timeline.length * 2000; // 所有元素展示完所需的总时间
+
+        // 2. 实现电影幕布般的平滑自动向下滚动
+        let currentScroll = 0;
+        const scrollSpeed = 1; // 每次滚动的像素，越小越慢越温柔 (推荐 0.4 ~ 0.8)
+
+        function autoScroll() {
+            if (timelineDone) return;
+
+            currentScroll += scrollSpeed;
+            container.scrollTop = currentScroll;
+
+            // 检测是否已经滚到底部 (预留 2px 误差)
+            if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+                finishTimeline();
+            } else {
+                // 没有到底，继续下一帧滚动
+                timelineScrollReq = requestAnimationFrame(autoScroll);
+            }
+        }
+
+        function finishTimeline() {
+            if (timelineDone) return;
+            timelineDone = true;
+            cancelAnimationFrame(timelineScrollReq);
+
+            // 到底部后，稍微停留两秒再进入下一个环节，体验更佳
+            setTimeout(() => {
+                showStory(0);
+            }, 2000);
+        }
+
+        // 3. 延迟两秒后，开始自动滚动（给第一条内容展示留出时间）
+        setTimeout(() => {
+            // 如果内容高度确实超过了容器，才需要滚动
+            if (container.scrollHeight > container.clientHeight) {
+                autoScroll();
+            } else {
+                // 如果内容很少没出现滚动条，等动画全部播完后直接进入下一页
+                setTimeout(finishTimeline, totalAnimTime + 2000);
+            }
+        }, 1500);
+
+        // 4. 极致安全兜底机制
+        // 万一出现任何意外卡住，最迟在一定时间后强制进入故事模式
+        const fallbackTime = Math.max(120000, totalAnimTime + 8000);
+        setTimeout(() => {
+            finishTimeline();
+        }, fallbackTime);
+    }
+
+    /* ========== 照片故事 ========== */
+    let storyIndex = 0;
+
+    // 【新增】在外部声明一个数组，用来专门收集所有的定时器
+    let storyTimers = [];
+
+    function showStory(index) {
+        // 1. 彻底清理上一次的所有定时器，防止“幽灵打字”和“幽灵切图”
+        storyTimers.forEach(t => clearTimeout(t));
+        storyTimers.forEach(t => clearInterval(t));
+        storyTimers = [];
+
+        // 2. 检查是否结束
+        if (index >= CONFIG.stories.length) {
+            showGallery();
+            return;
+        }
+
+        showScreen('story-screen');
+        const story = CONFIG.stories[index];
+        const bg = document.getElementById('story-bg');
+        const photo = document.getElementById('story-photo');
+        const textEl = document.getElementById('story-text');
+        const bar = document.getElementById('story-bar');
+
+        // 每张图片耗时 1s
+        const storyImagesLength = story.images.length || 1
+
+        storyIndex = index;
+
+        // 3. 重置 DOM 状态
+        textEl.innerHTML = '';
+        photo.classList.remove('show');
+
+        // 【关键修复】重置进度条前，必须先关闭过渡，并强制重绘，否则会看到进度条倒抽
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+        void bar.offsetWidth; // 触发浏览器重绘
+
+        // 4. 设置背景与第一张照片
+        bg.style.backgroundImage = `url(${story.images[0]})`;
+        photo.src = story.images[0];
+
+        // 短暂延迟后淡入第一张
+        storyTimers.push(setTimeout(() => photo.classList.add('show'), 200));
+
+        // 5. 照片轮播逻辑 (均分总时间)
+        if (story.images.length > 1) {
+            let imgIdx = 0;
+            const timePerImg = 1000;//story.duration / story.images.length; // 均分时间
+
+            const imgInterval = setInterval(() => {
+                photo.classList.remove('show'); // 淡出当前图片
+
+                // 延迟 500ms 等待 CSS 淡出动画结束后再换图淡入
+                const switchTimer = setTimeout(() => {
+                    imgIdx = (imgIdx + 1) % storyImagesLength;//story.images.length;
+                    photo.src = story.images[imgIdx];
+                    photo.classList.add('show');
+                }, 500);
+
+                storyTimers.push(switchTimer);
+            }, timePerImg);
+
+            storyTimers.push(imgInterval);
+        }
+
+        // 6. 动态打字机逻辑
+        let charIdx = 0;
+        // 【关键修复】动态计算打字速度：确保在总时长的 80% 时间内把字打完，避免时间到了字没出完
+        let typeSpeed = storyImagesLength * 800 / story.text.length //(story.duration * 0.8) / story.text.length;
+        if (typeSpeed > 150) typeSpeed = 150; // 最慢不超过 150ms/字
+
+        function type() {
+            if (charIdx < story.text.length) {
+                textEl.innerHTML += story.text.charAt(charIdx);
+                charIdx++;
+                storyTimers.push(setTimeout(type, typeSpeed));
+            }
+        }
+
+        // 延迟 400ms 后开始打字
+        storyTimers.push(setTimeout(type, 400));
+
+        // 7. 进度条动画 (只由总时间控制，平滑前进)
+        bar.style.transition = `width ${storyImagesLength * 1000}ms linear`;
+        bar.style.width = '100%';
+
+        // 8. 定时进入下一组故事
+        storyTimers.push(setTimeout(() => {
+            showStory(index + 1);
+        }, storyImagesLength * 1000));
+    }
+
+
+    let galleryDone = false;
+    let galleryScrollReq;
+
+    /* ========== 照片画廊 ========== */
+    function showGallery() {
+        showScreen('gallery-screen');
+        const grid = document.getElementById('gallery-grid');
+        grid.innerHTML = '';
+
+        CONFIG.gallery.forEach((item, i) => {
+            const div = document.createElement('div');
+            div.className = 'gallery-item';
+            div.style.animation = `fadeInUp 0.6s ease-out ${i * 0.1}s both`;
+            div.innerHTML = `
+            <img src="${item.src}" alt="${item.caption}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23eee%22 width=%22100%22 height=%22100%22/><text fill=%22%23999%22 x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2214%22>照片</text></svg>'">
+            <div class="gallery-caption">${item.caption}</div>
+        `;
+            console.log(i)
+            grid.appendChild(div);
+        });
+
+
+        // 滚动到底部后自动进入故事
+        const container = document.getElementById('gallery-grid');
+        let currentScroll = 0;
+        const scrollSpeed = 3;
+
+        const totalAnimTime = CONFIG.gallery.length * 100;
+
+
+        function autoScroll() {
+            if (galleryDone) return;
+
+            currentScroll += scrollSpeed;
+            container.scrollTop = currentScroll;
+
+            // 检测是否已经滚到底部 (预留 2px 误差)
+            if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+                finishGallery();
+            } else {
+                // 没有到底，继续下一帧滚动
+                galleryScrollReq = requestAnimationFrame(autoScroll);
+            }
+        }
+
+        function finishGallery() {
+            if (galleryDone) return;
+            galleryDone = true;
+            cancelAnimationFrame(galleryScrollReq);
+
+            // 到底部后，稍微停留两秒再进入下一个环节，体验更佳
+            setTimeout(() => {
+                showVideoPhase(0);
+            }, 3000);
+        }
+
+        // 3. 延迟两秒后，开始自动滚动（给第一条内容展示留出时间）
+        setTimeout(() => {
+            // 如果内容高度确实超过了容器，才需要滚动
+            if (container.scrollHeight > container.clientHeight) {
+                autoScroll();
+            } else {
+                // 如果内容很少没出现滚动条，等动画全部播完后直接进入下一页
+                setTimeout(finishGallery, totalAnimTime + 2000);
+            }
+        }, 1500);
+
+    }
+
+    /* ========== 视频祝福 ========== */
+    let currentVideoIndex = 0;
+
+    function showVideoPhase() {
+        if (!CONFIG.videos || CONFIG.videos.length === 0) {
+            showVow();
+            return;
+        }
+        showScreen('video-screen');
+        audio.pause();
+        document.getElementById('music-player').classList.add('paused');
+
+        currentVideoIndex = 0;
+        renderThumbs();
+        playCurrentVideo();
+    }
+
+    function renderThumbs() {
+        const box = document.getElementById('video-thumbs');
+        box.innerHTML = '';
+        CONFIG.videos.forEach((v, i) => {
+            const thumb = document.createElement('div');
+            thumb.className = 'v-thumb' + (i === 0 ? ' active' : '');
+            thumb.innerHTML = `
+            <img src="${v.poster || v.src}" onerror="this.style.background='#333'">
+            <span>${v.title || ('视频' + (i + 1))}</span>
+        `;
+            thumb.onclick = () => {
+                currentVideoIndex = i;
+                playCurrentVideo();
+                updateThumbs();
+            };
+            box.appendChild(thumb);
+        });
+    }
+
+    function updateThumbs() {
+        document.querySelectorAll('.v-thumb').forEach((t, i) => {
+            t.classList.toggle('active', i === currentVideoIndex);
+        });
+    }
+
+    function playCurrentVideo() {
+        const video = document.getElementById('blessing-video');
+        const v = CONFIG.videos[currentVideoIndex];
+        video.src = v.src;
+        video.poster = v.poster || '';
+        video.play().catch(e => console.log("播放拦截", e));
+        updateThumbs();
+
+        document.getElementById('btn-next-video').style.display =
+            currentVideoIndex < CONFIG.videos.length - 1 ? 'inline-block' : 'none';
+    }
+
+    document.getElementById('blessing-video').addEventListener('ended', handleNextVideo);
+    document.getElementById('btn-next-video').addEventListener('click', handleNextVideo);
+
+    function handleNextVideo() {
+        currentVideoIndex++;
+        if (currentVideoIndex < CONFIG.videos.length) {
+            playCurrentVideo();
+        } else {
+            showVow();
+        }
+    }
+
+    document.getElementById('btn-skip-video').addEventListener('click', () => {
+        document.getElementById('blessing-video').pause();
+        showVow();
+    });
+
+    /* ========== 誓言卡片 ========== */
+    function showVow() {
+        showScreen('vow-screen');
+        const textEl = document.getElementById('vow-text');
+        const sigEl = document.getElementById('vow-signature');
+        textEl.innerHTML = '';
+        sigEl.style.opacity = '0';
+
+        const text = CONFIG.vow.text;
+        let i = 0;
+
+        function type() {
+            if (i < text.length) {
+                textEl.innerHTML += text.charAt(i) === '\n' ? '<br>' : text.charAt(i);
+                i++;
+                setTimeout(type, 60);
+            } else {
+                sigEl.innerText = CONFIG.vow.signature;
+                sigEl.style.opacity = '1';
+                sigEl.style.transition = 'opacity 2s';
+            }
+        }
+
+        setTimeout(type, 500);
+
+        // 誓言结束后进入求婚
+        setTimeout(() => showProposal(), text.length * 60 + 4000);
+    }
+
+    /* ========== 终极求婚 ========== */
+    function showProposal() {
+        showScreen('proposal-screen');
+        // 恢复背景音乐
+        if (!isClimax) {
+            playMusic(CONFIG.music.normal[currentMusicIndex]);
+        }
+    }
+
+    document.getElementById('btn-accept').addEventListener('click', () => {
+        isClimax = true;
+        engagementDate = new Date();
+
+        audio.pause();
+        playMusic(CONFIG.music.climax, true);
+
+        // 爆发玫瑰雨
+        triggerMassiveRoses();
+
+        setTimeout(() => {
+            isScatteringRoses = false;
+            document.body.classList.add('starry-sky');
+            document.getElementById('canvas-stars').style.display = 'block';
+            initStars();
+            initFireworks();
+            document.getElementById('era-title').style.display = 'block';
+            document.getElementById('timer-life').style.display = 'block';
+
+            const ring = document.getElementById('ring-container');
+            ring.style.display = 'block';
+            setTimeout(() => ring.classList.add('show'), 100);
+
+            const ringImg = document.getElementById('ring-img');
+            ringImg.src = CONFIG.ringImage;
+            ringImg.onerror = function () {
+                this.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23FFF8DC'/%3E%3Cstop offset='50%25' stop-color='%23DAA520'/%3E%3Cstop offset='100%25' stop-color='%23B8860B'/%3E%3C/linearGradient%3E%3CradialGradient id='d' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0%25' stop-color='%23ffffff'/%3E%3Cstop offset='60%25' stop-color='%23e0f7fa'/%3E%3Cstop offset='100%25' stop-color='%2380deea'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='100' cy='120' r='50' stroke='url(%23g)' stroke-width='10' fill='none'/%3E%3Cpolygon points='100,30 70,70 130,70' fill='url(%23d)'/%3E%3Cpolygon points='70,70 130,70 100,90' fill='%23b2ebf2'/%3E%3C/svg%3E";
+            };
+        }, 7000);
+    });
+
+    /* ========== 粒子系统 ========== */
+    const cvsPart = document.getElementById('canvas-particles');
+    const ctxPart = cvsPart.getContext('2d');
+    let pW = cvsPart.width = window.innerWidth;
+    let pH = cvsPart.height = window.innerHeight;
+    let petals = [];
+
+    const imgRose = new Image();
+    const imgSakura = new Image();
+    imgRose.src = CONFIG.roseImage;
+    imgSakura.src = CONFIG.sakuraImage;
+
+
+    window.addEventListener('resize', () => {
+        pW = cvsPart.width = window.innerWidth;
+        pH = cvsPart.height = window.innerHeight;
+        fW = fwCvs.width = window.innerWidth;
+        fH = fwCvs.height = window.innerHeight;
+    });
+
+    class Petal {
+        constructor(type, isMassive = false) {
+            this.type = type;
+            this.x = Math.random() * pW;
+            this.y = isMassive ? -Math.random() * pH : -30;
+            this.size = Math.random() * 15 + 10;
+            this.speedY = type === 'rose' ? Math.random() * 4 + 3 : Math.random() * 1.5 + 0.5;
+            this.speedX = Math.random() * 2 - 1;
+            this.angle = Math.random() * 360;
+            this.spin = Math.random() * 0.08 - 0.04;
+            this.opacity = Math.random() * 0.4 + 0.6;
+        }
+
+        update() {
+            this.y += this.speedY;
+            this.x += this.speedX + Math.sin(this.y * 0.01) * 0.5;
+            this.angle += this.spin;
+            if (this.y > pH + 50) {
+                if (this.type === 'sakura' || isScatteringRoses) {
+                    this.y = -50;
+                    this.x = Math.random() * pW;
+                } else {
+                    this.dead = true;
+                }
+            }
+        }
+
+
+        draw() {
+            if (this.dead) return;
+            ctxPart.save();
+            ctxPart.globalAlpha = this.opacity;
+            ctxPart.translate(this.x, this.y);
+            ctxPart.rotate(this.angle);
+            ctxPart.drawImage(this.type === 'sakura' ? imgSakura : imgRose, -this.size / 2, -this.size / 2, this.size, this.size);
+            ctxPart.restore();
+        }
+    }
+
+    for (let i = 0; i < 40; i++) petals.push(new Petal('sakura'));
+
+    function animatePetals() {
+        ctxPart.clearRect(0, 0, pW, pH);
+        for (let i = petals.length - 1; i >= 0; i--) {
+            petals[i].update();
+            petals[i].draw();
+            if (petals[i].dead) petals.splice(i, 1);
+        }
+        requestAnimationFrame(animatePetals);
+    }
+
+    animatePetals();
+
+    function triggerMassiveRoses() {
+        petals = [];
+        isScatteringRoses = true;
+        for (let i = 0; i < 250; i++) {
+            setTimeout(() => petals.push(new Petal('rose', true)), Math.random() * 4000);
+        }
+    }
+
+    // 爱心雨
+    function startHeartRain() {
+        const hearts = ['💖', '💕', '💗', '💓', '💝', '🌸', '✨', '嫁给我', '爱你蓉蓉', '余生有我'];
+        setInterval(() => {
+            if (isClimax) return;
+            const h = document.createElement('div');
+            h.className = 'heart-rain';
+            h.innerText = hearts[Math.floor(Math.random() * hearts.length)];
+            h.style.left = Math.random() * 100 + 'vw';
+            h.style.animationDuration = (Math.random() * 4 + 4) + 's';
+            h.style.fontSize = (Math.random() * 20 + 16) + 'px';
+            document.body.appendChild(h);
+            setTimeout(() => h.remove(), 8000);
+        }, 300);
+    }
+
+    /* ========== 烟花系统 ========== */
+    const fwCvs = document.getElementById('canvas-fireworks');
+    const fwCtx = fwCvs.getContext('2d');
+    let fW = fwCvs.width = window.innerWidth;
+    let fH = fwCvs.height = window.innerHeight;
+    let fireworks = [], sparks = [];
+
+    class Firework {
+        constructor() {
+            this.x = Math.random() * fW * 0.8 + fW * 0.1;
+            this.y = fH;
+            this.targetY = Math.random() * (fH * 0.4) + 50;
+            this.speed = Math.random() * 3 + 5;
+            this.angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+            this.vx = Math.cos(this.angle) * this.speed;
+            this.vy = Math.sin(this.angle) * this.speed;
+            this.color = `hsl(${Math.random() * 360}, 100%, 70%)`;
+            this.trail = [];
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += 0.08;
+            this.trail.push({x: this.x, y: this.y});
+            if (this.trail.length > 10) this.trail.shift();
+            if (this.vy >= 0 || this.y <= this.targetY) {
+                this.exploded = true;
+                this.explode();
+            }
+        }
+
+        draw() {
+            fwCtx.beginPath();
+            fwCtx.moveTo(this.trail[0]?.x || this.x, this.trail[0]?.y || this.y);
+            for (let p of this.trail) fwCtx.lineTo(p.x, p.y);
+            fwCtx.strokeStyle = this.color;
+            fwCtx.lineWidth = 2;
+            fwCtx.stroke();
+            fwCtx.beginPath();
+            fwCtx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+            fwCtx.fillStyle = '#fff';
+            fwCtx.fill();
+        }
+
+        explode() {
+            const count = 60 + Math.random() * 40;
+            for (let i = 0; i < count; i++) {
+                sparks.push(new Spark(this.x, this.y, this.color));
+            }
+        }
+    }
+
+    class Spark {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 5 + 1;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.color = color;
+            this.alpha = 1;
+            this.decay = Math.random() * 0.02 + 0.01;
+            this.gravity = 0.05;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += this.gravity;
+            this.vx *= 0.98;
+            this.alpha -= this.decay;
+        }
+
+        draw() {
+            fwCtx.save();
+            fwCtx.globalAlpha = this.alpha;
+            fwCtx.beginPath();
+            fwCtx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+            fwCtx.fillStyle = this.color;
+            fwCtx.fill();
+            // 十字闪光
+            if (this.alpha > 0.5) {
+                fwCtx.strokeStyle = this.color;
+                fwCtx.lineWidth = 1;
+                fwCtx.beginPath();
+                fwCtx.moveTo(this.x - 4, this.y);
+                fwCtx.lineTo(this.x + 4, this.y);
+                fwCtx.moveTo(this.x, this.y - 4);
+                fwCtx.lineTo(this.x, this.y + 4);
+                fwCtx.stroke();
+            }
+            fwCtx.restore();
+        }
+    }
+
+    function initFireworks() {
+        fwCvs.style.display = 'block';
+
+        function animate() {
+            fwCtx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            fwCtx.fillRect(0, 0, fW, fH);
+            if (Math.random() < 0.05) fireworks.push(new Firework());
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                fireworks[i].update();
+                fireworks[i].draw();
+                if (fireworks[i].exploded) fireworks.splice(i, 1);
+            }
+            for (let i = sparks.length - 1; i >= 0; i--) {
+                sparks[i].update();
+                sparks[i].draw();
+                if (sparks[i].alpha <= 0) sparks.splice(i, 1);
+            }
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    }
+
+    /* ========== 星空背景 ========== */
+    function initStars() {
+        const cvs = document.getElementById('canvas-stars');
+        const ctx = cvs.getContext('2d');
+        let W = cvs.width = window.innerWidth;
+        let H = cvs.height = window.innerHeight;
+
+        const stars = [];
+        for (let i = 0; i < 200; i++) {
+            stars.push({
+                x: Math.random() * W, y: Math.random() * H,
+                size: Math.random() * 2, alpha: Math.random(),
+                speed: Math.random() * 0.02 + 0.005
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+            stars.forEach(s => {
+                s.alpha += s.speed;
+                if (s.alpha > 1 || s.alpha < 0.2) s.speed = -s.speed;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+                ctx.fill();
+            });
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+
+        window.addEventListener('resize', () => {
+            W = cvs.width = window.innerWidth;
+            H = cvs.height = window.innerHeight;
+        });
+    }
+</script>
+</body>
+</html>

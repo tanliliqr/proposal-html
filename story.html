@@ -1,0 +1,147 @@
+<!--
+@Time ： 2026/5/5 14:41
+@Auth ： tanli
+@File ：story.html
+@IDE ：PyCharm
+@Description：
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>照片故事-每一年的标志事件</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="config.js"></script>
+</head>
+<body>
+<!-- ==================== 3. 照片故事 ==================== -->
+<div id="story-screen" class="screen">
+    <div class="story-bg" id="story-bg"></div>
+    <div class="story-content">
+        <div class="story-photo-frame">
+            <img class="story-photo" id="story-photo" src="" alt="回忆">
+        </div>
+        <div class="story-text-box">
+            <div id="story-text"></div>
+            <div class="story-progress">
+                <div class="story-progress-bar" id="story-bar"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    const CONFIG = GLOBAL_CONFIG;
+
+    // 全局记录时间轴状态，方便清理
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.add('hidden');
+            s.classList.remove('active');
+        });
+        const target = document.getElementById(id);
+        target.classList.remove('hidden');
+        setTimeout(() => target.classList.add('active'), 50);
+    }
+
+    /* ========== 照片故事 ========== */
+    let storyIndex = 0;
+
+    // 【新增】在外部声明一个数组，用来专门收集所有的定时器
+    let storyTimers = [];
+
+    function showStory(index) {
+        // 1. 彻底清理上一次的所有定时器，防止“幽灵打字”和“幽灵切图”
+        storyTimers.forEach(t => clearTimeout(t));
+        storyTimers.forEach(t => clearInterval(t));
+        storyTimers = [];
+
+        // 2. 检查是否结束
+        if (index >= CONFIG.stories.length) {
+            showGallery();
+            return;
+        }
+
+        showScreen('story-screen');
+        const story = CONFIG.stories[index];
+        const bg = document.getElementById('story-bg');
+        const photo = document.getElementById('story-photo');
+        const textEl = document.getElementById('story-text');
+        const bar = document.getElementById('story-bar');
+
+        // 每张图片耗时 1s
+        const storyImagesLength = story.images.length || 1
+
+        storyIndex = index;
+
+        // 3. 重置 DOM 状态
+        textEl.innerHTML = '';
+        photo.classList.remove('show');
+
+        // 【关键修复】重置进度条前，必须先关闭过渡，并强制重绘，否则会看到进度条倒抽
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+        void bar.offsetWidth; // 触发浏览器重绘
+
+        // 4. 设置背景与第一张照片
+        bg.style.backgroundImage = `url(${story.images[0]})`;
+        photo.src = story.images[0];
+
+        // 短暂延迟后淡入第一张
+        storyTimers.push(setTimeout(() => photo.classList.add('show'), 200));
+
+        // 5. 照片轮播逻辑 (均分总时间)
+        if (story.images.length > 1) {
+            let imgIdx = 0;
+            const timePerImg = 1000;//story.duration / story.images.length; // 均分时间
+
+            const imgInterval = setInterval(() => {
+                photo.classList.remove('show'); // 淡出当前图片
+
+                // 延迟 500ms 等待 CSS 淡出动画结束后再换图淡入
+                const switchTimer = setTimeout(() => {
+                    imgIdx = (imgIdx + 1) % storyImagesLength;//story.images.length;
+                    photo.src = story.images[imgIdx];
+                    photo.classList.add('show');
+                }, 500);
+
+                storyTimers.push(switchTimer);
+            }, timePerImg);
+
+            storyTimers.push(imgInterval);
+        }
+
+        // 6. 动态打字机逻辑
+        let charIdx = 0;
+        // 【关键修复】动态计算打字速度：确保在总时长的 80% 时间内把字打完，避免时间到了字没出完
+        let typeSpeed = storyImagesLength * 800 / story.text.length //(story.duration * 0.8) / story.text.length;
+        if (typeSpeed > 150) typeSpeed = 150; // 最慢不超过 150ms/字
+
+        function type() {
+            if (charIdx < story.text.length) {
+                textEl.innerHTML += story.text.charAt(charIdx);
+                charIdx++;
+                storyTimers.push(setTimeout(type, typeSpeed));
+            }
+        }
+
+        // 延迟 400ms 后开始打字
+        storyTimers.push(setTimeout(type, 400));
+
+        // 7. 进度条动画 (只由总时间控制，平滑前进)
+        bar.style.transition = `width ${storyImagesLength * 1000}ms linear`;
+        bar.style.width = '100%';
+
+        // 8. 定时进入下一组故事
+        storyTimers.push(setTimeout(() => {
+            showStory(index + 1);
+        }, storyImagesLength * 1000));
+    }
+
+
+</script>
+</body>
+</html>
