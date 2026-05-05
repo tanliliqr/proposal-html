@@ -30,3 +30,6 @@
 - 文案的缓慢输出
 
 
+
+[![点击播放视频](./images/image1.jpg)](./video/blessing.mp4)
+[![点击播放视频](./images/image2.jpg)](./video/blessing1.mp4)
